@@ -1,0 +1,23 @@
+# Python & Backend
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+.env
+.pytest_cache/
+*.sqlite3
+
+# Model Training
+catboost_info/
+
+# Frontend is handled by frontend/.gitignore, but as a fallback:
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# OS & Editor Directories
+.vscode/
+.idea/
+.DS_Store

@@ -83,34 +83,40 @@ Evaluates checkout payload, enforces guardrails, and returns dynamic UI rules.
 ```plaintext
 ├── backend/
 │   ├── app/
-│   │   ├── api/
-│   │   │   ├── dashboard.py         # Metrics, audit ledger & failure logging
-│   │   │   └── risk.py              # /evaluate-risk & /create-order endpoints
-│   │   ├── core/
-│   │   │   ├── config.py            # Environment configurations
-│   │   │   └── razorpay_client.py   # Razorpay API client & mock fallbacks
-│   │   ├── ml/
-│   │   │   ├── feature_eng.py       # TypedDict feature extraction & regex filters
-│   │   │   ├── ml_model.py          # CatBoost wrapper & SHAP explainability
-│   │   │   └── velocity.py          # Redis IP + Pincode rolling counters
-│   │   └── schemas.py               # Pydantic V2 data schemas
+│   │   ├── config.py            # Environment configurations
+│   │   ├── main.py              # FastAPI application entrypoint
+│   │   ├── models/
+│   │   │   ├── ml_model.py      # CatBoost wrapper & SHAP explainability
+│   │   │   └── schemas.py       # Pydantic V2 data schemas
+│   │   ├── routes/
+│   │   │   ├── dashboard.py     # Metrics, audit ledger & failure logging
+│   │   │   ├── orders.py        # Order endpoints
+│   │   │   └── risk.py          # /evaluate-risk endpoint
+│   │   ├── services/
+│   │   │   ├── risk_engine.py   # Core risk evaluation logic
+│   │   │   └── velocity.py      # Redis IP + Pincode rolling counters
+│   │   └── utils/
+│   │       ├── feature_eng.py   # TypedDict feature extraction & regex filters
+│   │       └── razorpay_client.py # Razorpay API client & mock fallbacks
+│   ├── ml/
+│   │   ├── model_artifacts/     # Trained models & feature schemas
+│   │   └── train.py             # Model training script
 │   ├── tests/
-│   │   └── test_api.py              # 14/14 Pytest integration test suite
-│   ├── main.py                      # FastAPI application entrypoint
-│   └── requirements.txt             # Locked Python dependencies
+│   │   └── test_api.py          # 14/14 Pytest integration test suite
+│   ├── Dockerfile
+│   └── requirements.txt         # Locked Python dependencies
 ├── frontend/
 │   ├── src/
-│   │   ├── components/
-│   │   │   ├── Checkout.jsx         # Buyer checkout with dynamic COD gating
-│   │   │   └── Dashboard.jsx        # Merchant audit ledger & SHAP inspection
+│   │   ├── pages/
+│   │   │   ├── Checkout.jsx     # Buyer checkout with dynamic COD gating
+│   │   │   └── Dashboard.jsx    # Merchant audit ledger & SHAP inspection
+│   │   ├── services/
+│   │   │   └── api.js           # API communication
 │   │   ├── App.jsx
 │   │   └── main.jsx
 │   └── package.json
-├── model_artifacts/
-│   ├── rto_model.cbm                # Trained CatBoost classifier
-│   ├── feature_names.json           # Ordered feature schema
-│   └── pincode_risk.json            # Pincode baseline delivery risk maps
-├── evaluate.py                      # One-click terminal evaluation & cost matrix
+├── docker-compose.yml           # Docker deployment configuration
+├── enrich_dataset.py            # Script to enrich data
 └── README.md
 ```
 
@@ -144,7 +150,8 @@ python evaluate.py
 
 **Start Backend (FastAPI):**
 ```bash
-uvicorn backend.main:app --reload --port 8000
+cd backend
+uvicorn app.main:app --reload --port 8000
 ```
 
 **Start Frontend (Vite):**
