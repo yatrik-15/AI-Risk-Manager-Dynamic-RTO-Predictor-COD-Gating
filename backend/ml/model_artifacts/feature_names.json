@@ -1,0 +1,33 @@
+{
+  "features": [
+    "category",
+    "cart_value",
+    "order_quantity",
+    "payment_method",
+    "pincode",
+    "user_age",
+    "user_gender",
+    "discount_pct",
+    "shipping_method",
+    "address_length",
+    "has_vague_terms",
+    "pincode_rto_rate",
+    "ip_velocity_15m",
+    "ip_velocity_60m",
+    "device_velocity_15m"
+  ],
+  "cat_features": [
+    "category",
+    "payment_method",
+    "pincode",
+    "user_gender",
+    "shipping_method"
+  ],
+  "cat_indices": [
+    0,
+    3,
+    4,
+    6,
+    8
+  ]
+}
