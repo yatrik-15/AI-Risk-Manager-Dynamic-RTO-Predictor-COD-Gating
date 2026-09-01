@@ -57,7 +57,7 @@ async def verify_pincode_location(pincode: str, city: str, state: str) -> tuple[
                         
                         if state_mismatch or city_mismatch:
                             risk_bump += 0.40
-                            factors.append("state_or_district_mismatch")
+                            factors.append("state_or_district_mismatch (Rule)")
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(f"Pincode API failed: {e}")
@@ -97,15 +97,15 @@ def calculate_composite_risk(ml_prob: float, address: str) -> tuple[float, list[
     if is_critically_short:
         # Boost risk score or enforce a minimum risk floor (e.g. 0.75)
         adjusted_risk = max(adjusted_risk, 0.78)
-        risk_factors.append("critically_short_address")
+        risk_factors.append("critically_short_address (Rule)")
 
     if has_no_digits and is_critically_short:
         adjusted_risk = max(adjusted_risk, 0.82)
-        risk_factors.append("missing_house_or_flat_number")
+        risk_factors.append("missing_house_or_flat_number (Rule)")
 
     if has_vague_terms:
         adjusted_risk = max(adjusted_risk, 0.80)
-        risk_factors.append("vague_landmark_without_specifics")
+        risk_factors.append("vague_landmark_without_specifics (Rule)")
 
     return min(adjusted_risk, 1.0), risk_factors
 
@@ -119,12 +119,12 @@ def evaluate_quantity_and_value_risk(quantity: int, cart_value: float, category:
     # 1. Abnormal Quantity Threshold
     if quantity >= MAX_RETAIL_QUANTITY and category.lower() == "electronics":
         risk_bump += 0.80  # Push to high risk
-        factors.append("bulk_retail_quantity_anomaly")
+        factors.append("bulk_retail_quantity_anomaly (Rule)")
 
     # 2. High-Ticket Cart Ceiling for COD
     if cart_value > MAX_ALLOWED_COD_AMOUNT:
         risk_bump += 1.0  # Absolutely block COD
-        factors.append("high_ticket_value_exceeds_cod_cap")
+        factors.append("high_ticket_value_exceeds_cod_cap (Rule)")
 
     return risk_bump, factors
 
@@ -139,13 +139,13 @@ def evaluate_address_robustness(address: str) -> tuple[float, list[str]]:
     
     if unique_words < 3:
         risk_penalty += 0.30
-        factors.append("low_unique_word_count")
+        factors.append("low_unique_word_count (Rule)")
         
     # 2. Repeated Character Spam (Defeats "aaaaaaa" padding)
     # Regex looks for the same character repeating 5 or more times
     if re.search(r'(.)\1{4,}', clean_addr):
         risk_penalty += 0.40
-        factors.append("adversarial_character_padding")
+        factors.append("adversarial_character_padding (Rule)")
         
     return risk_penalty, factors
 
@@ -203,15 +203,15 @@ async def evaluate_risk(request: RiskEvaluationRequest) -> RiskEvaluationRespons
 
     # ── 5. SHAP explanation ──────────────────────────────────────
     top_factors = await run_in_threadpool(rto_model.get_top_risk_factors, shap_values, 3)
-    factor_labels = [get_risk_label(f["feature"]) for f in top_factors]
+    factor_labels = [f"{get_risk_label(f['feature'])} (SHAP: +{f['impact']:.2f})" for f in top_factors]
 
     # Add velocity-based risk factors to the explanation if significant
     # Note: the model now natively scores these features — we only ADD them
     # to the *explanation text* here, not modify the probability score.
     if ip_vel_15 > 3:
-        factor_labels.append(f"High IP velocity: {ip_vel_15} requests in 15 min")
+        factor_labels.append(f"High IP velocity: {ip_vel_15} requests in 15 min (Heuristic)")
     if dev_vel_15 > 3:
-        factor_labels.append(f"Suspicious device: {dev_vel_15} requests in 15 min")
+        factor_labels.append(f"Suspicious device: {dev_vel_15} requests in 15 min (Heuristic)")
 
     # Apply Address Risk Floor / Rule Booster
     rto_prob, address_factors = calculate_composite_risk(rto_prob, request.shipping_address)
@@ -231,7 +231,7 @@ async def evaluate_risk(request: RiskEvaluationRequest) -> RiskEvaluationRespons
     # Apply Proxy Defense Guardrail
     if pincode_vel_15 > 15:
         rto_prob = max(rto_prob, 0.95)
-        factor_labels.append("distributed_proxy_attack_detected")
+        factor_labels.append("distributed_proxy_attack_detected (Rule)")
 
     # Apply Bulk & High-Ticket Risk Guardrails
     risk_bump, cart_factors = evaluate_quantity_and_value_risk(

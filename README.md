@@ -28,19 +28,23 @@ Guarantees that the final order amount sent to `POST /v1/orders` is always stric
 # 📊 Evaluation & Economic Impact Matrix
 Evaluated on a held-out test set of 2,000 synthetic Indian D2C transactions:
 
-| Metric | Score | Industry Baseline |
+| Metric | Score | Estimated E-Commerce Baseline* |
 | :--- | :--- | :--- |
-| ROC-AUC | 0.7619 | 0.6800 |
-| F1-Score | 0.6760 | 0.5400 |
-| P95 Inference Latency | 12.4 ms | 120 ms |
-| Test Suite Pass Rate | 14 / 14 (100%) | — |
+| ROC-AUC | 0.7619 | ~0.6800 |
+| F1-Score | 0.6760 | ~0.5400 |
+| Precision | 0.7250 | — |
+| Recall | 0.6330 | — |
+| P95 Inference | 12.4 ms | 120 ms |
+| Test Pass Rate | 14 / 14 | — |
 
-## Cost-Matrix Optimization
-Rather than using a generic $0.50$ probability cutoff, our threshold is tuned against true merchant unit economics:
+*\*Baseline numbers are estimates based on standard logistic regression benchmarks.*
+
+## Simulated Economic Impact (Synthetic Cost-Matrix)
+> **Simulation Assumptions:** This does not represent actual Razorpay merchant economics. Our threshold is tuned against a hypothetical merchant unit economics model:
 $$\text{Net Margin Protected} = (\text{True Positives} \times ₹200\text{ Shipping Saved}) - (\text{False Positives} \times ₹400\text{ Margin Lost})$$
-- **Logistics Costs Saved:** $+₹1,24,200$
-- **False-Positive Margin Penalty:** $-₹18,400$
-- **Net Profit Protected:** $+₹1,05,800$
+- **Simulated Logistics Costs Saved:** $+₹1,24,200$
+- **Simulated False-Positive Penalty:** $-₹18,400$
+- **Simulated Net Profit Protected:** $+₹1,05,800$
 
 # 🔌 API Specifications
 
@@ -72,8 +76,7 @@ Evaluates checkout payload, enforces guardrails, and returns dynamic UI rules.
     "display_message": "Standard checkout active."
   },
   "audit_trail": {
-    "top_risk_factors": ["address_completeness_high", "low_velocity_pincode"],
-    "model_inference_ms": 11.8
+    "top_risk_factors": ["address_completeness_high (SHAP: +0.42)", "low_velocity_pincode (SHAP: +0.15)", "critically_short_address (Rule)"]
   }
 }
 ```
@@ -164,7 +167,7 @@ npm run dev
 Access the Buyer Checkout UI at `http://localhost:5173` and the Merchant Dashboard at `http://localhost:5173/dashboard`.
 
 # 🔮 Alignment with Razorpay Vulcan
-This microservice is engineered as an Agentic Execution Layer. While running independently at the merchant edge using tabular gradient boosting, its architecture is structured to ingest sequential foundation-level network embeddings from Razorpay Vulcan, allowing network-wide payment intelligence to directly drive localized, bounded merchant interventions.
+This microservice is extensible to act as an Agentic Execution Layer. While running independently at the merchant edge using tabular gradient boosting, its architecture can be extended to ingest sequential foundation-level network embeddings from Razorpay Vulcan, allowing network-wide payment intelligence to directly drive localized, bounded merchant interventions.
 
 # 📜 License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
