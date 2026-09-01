@@ -247,11 +247,11 @@ export default function Checkout() {
                           <option value="TG">Telangana</option>
                           <option value="TR">Tripura</option>
                           <option value="UP">Uttar Pradesh</option>
-                          <option value="UK">Uttarakhand</option>
+                          <option value="UT">Uttarakhand</option>
                           <option value="WB">West Bengal</option>
-                          <option value="AN">Andaman and Nicobar Islands</option>
+                          <option value="AN">Andaman and Nicobar</option>
                           <option value="CH">Chandigarh</option>
-                          <option value="DN">Dadra and Nagar Haveli and Daman and Diu</option>
+                          <option value="DN">Dadra & Nagar Haveli & Daman & Diu</option>
                           <option value="DL">Delhi</option>
                           <option value="JK">Jammu and Kashmir</option>
                           <option value="LA">Ladakh</option>

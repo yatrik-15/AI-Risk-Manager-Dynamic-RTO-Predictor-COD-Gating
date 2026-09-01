@@ -7,7 +7,7 @@ CPU-intensive ML operations (such as CatBoost matrix transformations and SHAP tr
 
 ## 2. Multi-Vector Adversarial Defenses
 Standard models fail against deliberate bot exploitation. This microservice implements two dedicated adversarial defense layers:
-- **The Distributed Proxy Defense:** Scammers bypass IP rate-limiting by routing requests through residential proxies. Our Redis velocity engine tracks rolling request counts across both `ip_address` and the physical destination `pincode` over a 15-minute window (`rate_limit:pincode:{pincode}`).
+- **Temporal Fraud Sentinel (Distributed Proxy Defense):** Scammers bypass IP rate-limiting by routing requests through residential proxies. Our Redis velocity engine tracks rolling request counts across both `ip_address` and the physical destination `pincode` over a 15-minute window (`rate_limit:pincode:{pincode}`).
 - **Adversarial Address Padding Defense:** Scammers pad incomplete addresses with repeated characters to bypass simple string-length heuristics (e.g., "near bus stand aaaaaaaaaa"). The engine applies regex checks for repetitive characters (`r'(.)\1{4,}'`) and checks unique token diversity (`len(set(words)) < 3`) before triggering model inference.
 
 ## 3. Fault-Tolerant, Fail-Open Architecture (The Graceful Degradation Bar)
@@ -124,8 +124,8 @@ Evaluates checkout payload, enforces guardrails, and returns dynamic UI rules.
 
 ### 1. Clone & Set Up Python Virtual Environment
 ```bash
-git clone https://github.com/your-username/razorpay-rto-risk-manager.git
-cd razorpay-rto-risk-manager
+git clone https://github.com/yatrik-15/AI-Risk-Manager-Dynamic-RTO-Predictor-COD-Gating.git
+cd AI-Risk-Manager-Dynamic-RTO-Predictor-COD-Gating
 python -m venv venv
 # On Windows:
 .\venv\Scripts\activate

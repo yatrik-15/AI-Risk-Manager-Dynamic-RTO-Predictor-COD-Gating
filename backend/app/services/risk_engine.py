@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 import re
+import httpx
 from starlette.concurrency import run_in_threadpool
 
 from ..models.ml_model import rto_model
@@ -34,6 +35,36 @@ _total_margin_saved = 0.0
 _risk_score_sum = 0.0
 
 
+async def verify_pincode_location(pincode: str, city: str, state: str) -> tuple[float, list[str]]:
+    risk_bump = 0.0
+    factors = []
+    try:
+        async with httpx.AsyncClient(timeout=1.0) as client:
+            resp = await client.get(f"https://api.postalpincode.in/pincode/{pincode}")
+            if resp.status_code == 200:
+                data = resp.json()
+                if data and data[0].get("Status") == "Success":
+                    post_offices = data[0].get("PostOffice", [])
+                    if post_offices:
+                        actual_state = post_offices[0].get("State", "").lower()
+                        actual_district = post_offices[0].get("District", "").lower()
+                        
+                        user_state = state.lower()
+                        user_city = city.lower()
+                        
+                        state_mismatch = user_state not in actual_state and actual_state not in user_state
+                        city_mismatch = user_city not in actual_district and actual_district not in user_city
+                        
+                        if state_mismatch or city_mismatch:
+                            risk_bump += 0.40
+                            factors.append("state_or_district_mismatch")
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Pincode API failed: {e}")
+        
+    return risk_bump, factors
+
+
 def get_current_threshold() -> float:
     """Get the current risk threshold."""
     return settings.RISK_THRESHOLD
@@ -57,9 +88,9 @@ def calculate_composite_risk(ml_prob: float, address: str) -> tuple[float, list[
     # 2. Check for missing building/house numbers (no digits)
     has_no_digits = not any(char.isdigit() for char in clean_addr)
     
-    # 3. Check for vague filler phrases
+    # 3. Check for vague filler phrases (only penalize if there are no specific building numbers)
     vague_phrases = ["near", "opposite", "opp", "behind", "main road", "bus stand"]
-    has_vague_terms = any(phrase in clean_addr for phrase in vague_phrases) and word_count <= 8
+    has_vague_terms = any(phrase in clean_addr for phrase in vague_phrases) and word_count <= 8 and has_no_digits
 
     adjusted_risk = ml_prob
 
@@ -86,7 +117,7 @@ def evaluate_quantity_and_value_risk(quantity: int, cart_value: float, category:
     factors = []
 
     # 1. Abnormal Quantity Threshold
-    if quantity > MAX_RETAIL_QUANTITY and category.lower() == "electronics":
+    if quantity >= MAX_RETAIL_QUANTITY and category.lower() == "electronics":
         risk_bump += 0.80  # Push to high risk
         factors.append("bulk_retail_quantity_anomaly")
 
@@ -190,6 +221,12 @@ async def evaluate_risk(request: RiskEvaluationRequest) -> RiskEvaluationRespons
     robustness_penalty, robustness_factors = evaluate_address_robustness(request.shipping_address)
     rto_prob = min(rto_prob + robustness_penalty, 1.0)
     factor_labels.extend(robustness_factors)
+
+    # Apply City/State Mismatch Guardrail
+    if request.city and request.state:
+        mismatch_penalty, mismatch_factors = await verify_pincode_location(request.pincode, request.city, request.state)
+        rto_prob = min(rto_prob + mismatch_penalty, 1.0)
+        factor_labels.extend(mismatch_factors)
     
     # Apply Proxy Defense Guardrail
     if pincode_vel_15 > 15:

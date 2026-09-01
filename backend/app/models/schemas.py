@@ -29,6 +29,8 @@ class RiskEvaluationRequest(BaseModel):
     user_gender: Optional[str] = Field(default="Male", description="User gender")
     discount_pct: Optional[float] = Field(default=0.0, ge=0, le=100, description="Discount percentage")
     shipping_method: Optional[str] = Field(default="Standard (5-7 days)", description="Shipping method")
+    city: Optional[str] = Field(default=None, description="City")
+    state: Optional[str] = Field(default=None, description="State")
 
     @field_validator("pincode")
     @classmethod

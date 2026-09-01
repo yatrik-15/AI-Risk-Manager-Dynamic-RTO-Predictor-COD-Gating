@@ -97,19 +97,21 @@ class RTOModel:
         Returns:
             List of dicts with 'feature', 'impact', 'direction'
         """
-        # Sort by absolute SHAP value
-        indices = np.argsort(np.abs(shap_values))[::-1][:top_k]
+        # Sort by SHAP value descending (highest positive impact first)
+        indices = np.argsort(shap_values)[::-1]
 
         factors = []
         for idx in indices:
             impact = float(shap_values[idx])
-            if abs(impact) < 0.001:
+            if impact <= 0.001:  # Only consider positive impacts (increases risk)
                 continue
             factors.append({
                 "feature": self.feature_names[idx],
                 "impact": round(impact, 4),
-                "direction": "increases_risk" if impact > 0 else "decreases_risk",
+                "direction": "increases_risk",
             })
+            if len(factors) == top_k:
+                break
 
         return factors
 

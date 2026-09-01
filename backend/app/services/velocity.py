@@ -67,12 +67,14 @@ class VelocityService:
         now = time.time()
         cutoff = now - window_seconds
 
+import uuid
+
         try:
             async with self._redis.pipeline(transaction=True) as pipe:
                 # 1. Remove entries outside the window
                 pipe.zremrangebyscore(key, 0, cutoff)
-                # 2. Add current event
-                pipe.zadd(key, {f"{now}": now})
+                # 2. Add current event with a unique ID to prevent collision under burst attacks
+                pipe.zadd(key, {f"{now}:{uuid.uuid4().hex[:8]}": now})
                 # 3. Count remaining entries
                 pipe.zcard(key)
                 # 4. Set TTL to auto-cleanup (window + 60s buffer)
