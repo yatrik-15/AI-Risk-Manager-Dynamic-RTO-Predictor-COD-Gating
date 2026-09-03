@@ -8,7 +8,7 @@ const API_BASE = '/api/v1';
 
 /**
  * Evaluate RTO risk for a checkout request.
- * CRITICAL: 150ms timeout with graceful degradation fallback.
+ * Implements a strict 150ms timeout.
  */
 export async function evaluateRisk(payload) {
   const controller = new AbortController();
@@ -33,7 +33,7 @@ export async function evaluateRisk(payload) {
     // Log the failure to dashboard asynchronously
     logFailure(err.message).catch(() => {});
 
-    // GRACEFUL DEGRADATION: Allow all payment methods
+    // Allow all payment methods
     return {
       risk_score: 0,
       rto_probability_category: 'UNKNOWN',
@@ -128,24 +128,50 @@ export async function updateThreshold(threshold) {
 
 /** Get failure log */
 export async function getFailureLog() {
+  // Attempt to sync any offline failures before fetching
+  await syncOfflineFailures();
+  
   const res = await fetch(`${API_BASE}/dashboard/failures`);
   if (!res.ok) throw new Error(`Failed to fetch failures`);
   return res.json();
 }
 
+async function syncOfflineFailures() {
+  const offlineLogs = JSON.parse(localStorage.getItem('offline_failures') || '[]');
+  if (offlineLogs.length === 0) return;
+
+  try {
+    for (const payload of offlineLogs) {
+      await fetch(`${API_BASE}/dashboard/failures`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    }
+    localStorage.removeItem('offline_failures');
+  } catch {
+    // Still offline, keep in queue
+  }
+}
+
 /** Log a frontend failure event to the dashboard */
 async function logFailure(message) {
+  const payload = {
+    error_type: 'FRONTEND_TIMEOUT',
+    error_message: message,
+    fallback_action: 'COD_ALLOWED_DEFAULT',
+  };
+
   try {
     await fetch(`${API_BASE}/dashboard/failures`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        error_type: 'FRONTEND_TIMEOUT',
-        error_message: message,
-        fallback_action: 'COD_ALLOWED_DEFAULT',
-      }),
+      body: JSON.stringify(payload),
     });
   } catch {
-    // Silently fail — we can't log failures if the backend is down
+    // Queue offline for later sync
+    const offlineLogs = JSON.parse(localStorage.getItem('offline_failures') || '[]');
+    offlineLogs.push(payload);
+    localStorage.setItem('offline_failures', JSON.stringify(offlineLogs));
   }
 }

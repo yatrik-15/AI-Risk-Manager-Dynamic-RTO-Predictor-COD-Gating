@@ -26,13 +26,44 @@ from ..services.velocity import velocity_service
 from ..config import settings
 
 
-# ── In-memory audit stores (sufficient for hackathon demo) ───────────────────
-_audit_log: list[AuditLogEntry] = []
-_failure_log: list[FailureLogEntry] = []
-_total_evaluations = 0
-_total_cod_blocked = 0
-_total_margin_saved = 0.0
-_risk_score_sum = 0.0
+import json
+import os
+
+DB_FILE = os.path.join(os.path.dirname(__file__), "dashboard_db.json")
+
+def load_db():
+    if os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, "r") as f:
+                data = json.load(f)
+                return (
+                    [AuditLogEntry(**x) for x in data.get("audit_log", [])],
+                    [FailureLogEntry(**x) for x in data.get("failure_log", [])],
+                    data.get("total_evaluations", 0),
+                    data.get("total_cod_blocked", 0),
+                    data.get("total_margin_saved", 0.0),
+                    data.get("risk_score_sum", 0.0)
+                )
+        except Exception as e:
+            print("Failed to load db:", e)
+    return [], [], 0, 0, 0.0, 0.0
+
+_audit_log, _failure_log, _total_evaluations, _total_cod_blocked, _total_margin_saved, _risk_score_sum = load_db()
+
+def save_db():
+    data = {
+        "audit_log": [x.model_dump() for x in _audit_log],
+        "failure_log": [x.model_dump() for x in _failure_log],
+        "total_evaluations": _total_evaluations,
+        "total_cod_blocked": _total_cod_blocked,
+        "total_margin_saved": _total_margin_saved,
+        "risk_score_sum": _risk_score_sum
+    }
+    try:
+        with open(DB_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception as e:
+        print("Failed to save db:", e)
 
 
 async def verify_pincode_location(pincode: str, city: str, state: str) -> tuple[float, list[str]]:
@@ -110,7 +141,7 @@ def calculate_composite_risk(ml_prob: float, address: str) -> tuple[float, list[
     return min(adjusted_risk, 1.0), risk_factors
 
 MAX_RETAIL_QUANTITY = 5
-MAX_ALLOWED_COD_AMOUNT = 8000  # Strict cap on COD orders (e.g., ₹8,000)
+MAX_ALLOWED_COD_AMOUNT = 7000  # Strict cap on COD orders (e.g., ₹7,000)
 
 def evaluate_quantity_and_value_risk(quantity: int, cart_value: float, category: str) -> tuple[float, list[str]]:
     risk_bump = 0.0
@@ -212,13 +243,11 @@ async def evaluate_risk(request: RiskEvaluationRequest) -> RiskEvaluationRespons
         
     factor_labels = [f"{get_risk_label(f['feature'])} (SHAP: +{f['impact']:.2f})" for f in filtered_factors]
 
-    # Add velocity-based risk factors to the explanation if significant
-    # Note: the model now natively scores these features — we only ADD them
-    # to the *explanation text* here, not modify the probability score.
+    # Add heuristic risk factors if threshold exceeded
     if ip_vel_15 > 3:
-        factor_labels.append(f"High IP velocity: {ip_vel_15} requests in 15 min (Heuristic)")
+        factor_labels.append(f"High IP velocity: {ip_vel_15} requests in 15 min")
     if dev_vel_15 > 3:
-        factor_labels.append(f"Suspicious device: {dev_vel_15} requests in 15 min (Heuristic)")
+        factor_labels.append(f"Suspicious device: {dev_vel_15} requests in 15 min")
 
     # Apply Address Risk Floor / Rule Booster
     rto_prob, address_factors = calculate_composite_risk(rto_prob, request.shipping_address)
@@ -256,7 +285,7 @@ async def evaluate_risk(request: RiskEvaluationRequest) -> RiskEvaluationRespons
         cod_supported = False
         discount_active = True
         
-        # Max discount leaves at least 1 INR for Razorpay minimum order limit
+        # Calculate discount ensuring at least 1 INR for Razorpay minimum order limit
         calculated_discount = int(request.cart_value * 0.05 * 100)
         max_allowed_discount = int((request.cart_value - 1) * 100)
         discount_paise = max(0, min(calculated_discount, max_allowed_discount))
@@ -322,6 +351,7 @@ async def evaluate_risk(request: RiskEvaluationRequest) -> RiskEvaluationRespons
     if len(_audit_log) > 1000:
         _audit_log.pop(0)
 
+    save_db()
     return response
 
 
@@ -336,6 +366,8 @@ def log_failure(error_type: str, error_message: str, fallback_action: str = "COD
     _failure_log.append(entry)
     if len(_failure_log) > 500:
         _failure_log.pop(0)
+    
+    save_db()
 
 
 def get_dashboard_metrics() -> DashboardMetrics:
