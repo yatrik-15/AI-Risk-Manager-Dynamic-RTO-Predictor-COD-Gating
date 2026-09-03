@@ -1,6 +1,6 @@
 # ⚡ Core Engineering Highlights
 
-![System Architecture](./System%20Architecture.svg)
+![System Architecture](./System_Architecture.png)
 
 ## 1. Non-Blocking Threadpool Offloading
 CPU-intensive ML operations (such as CatBoost matrix transformations and SHAP tree-explainer evaluations) can block the standard Python async event loop, reducing API concurrency.
