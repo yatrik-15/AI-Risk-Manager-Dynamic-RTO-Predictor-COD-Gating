@@ -1,6 +1,6 @@
 # ⚡ Core Engineering Highlights
 
-![System Architecture](./System_architecture.png)
+![System Architecture](./System%20Architecture.svg)
 
 ## 1. Non-Blocking Threadpool Offloading
 CPU-intensive ML operations (such as CatBoost matrix transformations and SHAP tree-explainer evaluations) can block the standard Python async event loop, reducing API concurrency.
@@ -9,6 +9,7 @@ CPU-intensive ML operations (such as CatBoost matrix transformations and SHAP tr
 
 ## 2. Multi-Vector Adversarial Defenses
 Standard models fail against deliberate bot exploitation. This microservice implements two dedicated adversarial defense layers:
+
 - **Temporal Fraud Sentinel (Distributed Proxy Defense):** Scammers bypass IP rate-limiting by routing requests through residential proxies. Our Redis velocity engine tracks rolling request counts across both `ip_address` and the physical destination `pincode` over a 15-minute window (`rate_limit:pincode:{pincode}`).
 - **Adversarial Address Padding Defense:** Scammers pad incomplete addresses with repeated characters to bypass simple string-length heuristics (e.g., "near bus stand aaaaaaaaaa"). The engine applies regex checks for repetitive characters (`r'(.)\1{4,}'`) and checks unique token diversity (`len(set(words)) < 3`) before triggering model inference.
 
