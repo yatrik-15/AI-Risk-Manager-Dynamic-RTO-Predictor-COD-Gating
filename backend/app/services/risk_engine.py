@@ -110,7 +110,7 @@ def calculate_composite_risk(ml_prob: float, address: str) -> tuple[float, list[
     return min(adjusted_risk, 1.0), risk_factors
 
 MAX_RETAIL_QUANTITY = 5
-MAX_ALLOWED_COD_AMOUNT = 5000  # Strict cap on COD orders (e.g., ₹5,000)
+MAX_ALLOWED_COD_AMOUNT = 8000  # Strict cap on COD orders (e.g., ₹8,000)
 
 def evaluate_quantity_and_value_risk(quantity: int, cart_value: float, category: str) -> tuple[float, list[str]]:
     risk_bump = 0.0
@@ -203,7 +203,14 @@ async def evaluate_risk(request: RiskEvaluationRequest) -> RiskEvaluationRespons
 
     # ── 5. SHAP explanation ──────────────────────────────────────
     top_factors = await run_in_threadpool(rto_model.get_top_risk_factors, shap_values, 3)
-    factor_labels = [f"{get_risk_label(f['feature'])} (SHAP: +{f['impact']:.2f})" for f in top_factors]
+    
+    filtered_factors = []
+    for f in top_factors:
+        if f['feature'] == 'order_quantity' and (request.order_quantity or 1) < 5:
+            continue
+        filtered_factors.append(f)
+        
+    factor_labels = [f"{get_risk_label(f['feature'])} (SHAP: +{f['impact']:.2f})" for f in filtered_factors]
 
     # Add velocity-based risk factors to the explanation if significant
     # Note: the model now natively scores these features — we only ADD them

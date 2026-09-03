@@ -181,7 +181,7 @@ def test_evaluate_risk_adversarial_address_padding(client):
     response = client.post("/api/v1/evaluate-risk", json=payload)
     assert response.status_code == 200
     data = response.json()
-    assert "adversarial_character_padding" in data["audit_trail"]["top_risk_factors"]
+    assert any("adversarial_character_padding" in factor for factor in data["audit_trail"]["top_risk_factors"])
     assert data["rto_probability_category"] == "HIGH"
     assert data["checkout_ui_rules"]["cod_supported"] is False
 
@@ -202,7 +202,7 @@ def test_evaluate_risk_high_destination_velocity(mock_get_velocity, client):
     response = client.post("/api/v1/evaluate-risk", json=payload)
     assert response.status_code == 200
     data = response.json()
-    assert "distributed_proxy_attack_detected" in data["audit_trail"]["top_risk_factors"]
+    assert any("distributed_proxy_attack_detected" in factor for factor in data["audit_trail"]["top_risk_factors"])
     assert data["rto_probability_category"] == "HIGH"
     assert data["checkout_ui_rules"]["cod_supported"] is False
 

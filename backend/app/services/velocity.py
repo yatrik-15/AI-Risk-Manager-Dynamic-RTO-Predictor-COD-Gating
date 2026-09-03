@@ -5,6 +5,7 @@ Falls back gracefully if Redis is unavailable.
 """
 
 import time
+import uuid
 import redis.asyncio as aioredis
 from typing import Optional, cast, Awaitable
 import logging
@@ -18,6 +19,7 @@ class VelocityService:
     def __init__(self):
         self._redis: Optional[aioredis.Redis] = None
         self._connected = False
+        self._memory_store = {}  # In-memory fallback for local Windows demo
 
     async def connect(self, redis_url: str):
         """Initialize Redis connection pool."""
@@ -34,7 +36,7 @@ class VelocityService:
             self._connected = True
             logger.info("[REDIS] Connected successfully")
         except Exception as e:
-            logger.warning(f"[REDIS] Connection failed: {e}. Velocity checks will return 0.")
+            logger.warning(f"[REDIS] Connection failed: {e}. Using in-memory fallback for demo.")
             self._connected = False
 
     async def close(self):
@@ -51,6 +53,7 @@ class VelocityService:
         """
         Get the count of events for an entity within a sliding time window.
         Uses Redis Sorted Sets with atomic pipeline for thread safety.
+        Falls back to an in-memory list if Redis is unavailable.
 
         Args:
             entity_type: "ip" or "device"
@@ -58,16 +61,27 @@ class VelocityService:
             window_seconds: Time window in seconds (e.g., 900 for 15 min)
 
         Returns:
-            Count of events in the window. Returns 0 if Redis is unavailable.
+            Count of events in the window.
         """
-        if not self._connected or not self._redis:
-            return 0
-
         key = f"velocity:{entity_type}:{entity_id}"
         now = time.time()
         cutoff = now - window_seconds
-
-import uuid
+        
+        if not self._connected or not self._redis:
+            # --- IN-MEMORY FALLBACK FOR DEMO ---
+            if key not in self._memory_store:
+                self._memory_store[key] = []
+            
+            # Filter out old timestamps
+            self._memory_store[key] = [t for t in self._memory_store[key] if t > cutoff]
+            # Add current timestamp
+            self._memory_store[key].append(now)
+            
+            # Auto-cleanup memory store occasionally so it doesn't grow infinitely in dev
+            if len(self._memory_store) > 1000:
+                self._memory_store.clear()
+                
+            return len(self._memory_store[key])
 
         try:
             async with self._redis.pipeline(transaction=True) as pipe:

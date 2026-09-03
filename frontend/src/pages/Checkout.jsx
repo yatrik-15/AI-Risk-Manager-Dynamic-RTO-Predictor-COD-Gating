@@ -1,11 +1,53 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { evaluateRiskDemo, createOrder } from '../services/api';
+import { useAddToCartEffect, useShippingEffect } from '../components/AddToCartEffect';
 
 const PRODUCTS = [
   { id: 1, name: 'Premium Wireless Earbuds', price: 2499, category: 'Electronics', img: '/earbuds.jpg' },
   { id: 2, name: 'Cotton Kurta Set', price: 1899, category: 'Fashion', img: '/kurta.jpg' },
   { id: 3, name: 'Smart Watch Pro', price: 4999, category: 'Electronics', img: '/smartwatch.jpg' },
 ];
+
+function ProductItem({ p, inCart, toggleProduct, updateQty }) {
+  const { triggerAddToCartEffect } = useAddToCartEffect();
+  const imgRef = useRef(null);
+  const cardRef = useRef(null);
+
+  const handleClick = () => {
+    if (inCart) {
+      toggleProduct(p);
+      return;
+    }
+    
+    triggerAddToCartEffect({
+      imageEl: imgRef.current,
+      buttonEl: cardRef.current,
+      cartEl: document.getElementById('order-summary-title'),
+      onLanded: () => toggleProduct(p)
+    });
+  };
+
+  return (
+    <div ref={cardRef} className={`product-card ${inCart ? 'selected' : ''}`} onClick={handleClick} tabIndex={0}>
+      <img ref={imgRef} className="product-card-img" src={p.img} alt={p.name} />
+      <div className="product-card-name">{p.name}</div>
+      <div className="product-card-cat">{p.category}</div>
+      <div className="product-card-price">₹{p.price.toLocaleString()}</div>
+      {inCart && (
+        <div className="product-card-qty" onClick={e => e.stopPropagation()}>
+          <button className="qty-btn" onClick={() => updateQty(p.id, -1)}>−</button>
+          <span className="qty-value">{inCart.qty}</span>
+          <button className="qty-btn" onClick={() => updateQty(p.id, 1)}>+</button>
+        </div>
+      )}
+      {inCart && (
+        <div className="selected-check">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Checkout() {
   const [step, setStep] = useState('products');
@@ -20,6 +62,12 @@ export default function Checkout() {
   const [payDone, setPayDone] = useState(false);
   const [coupon, setCoupon] = useState('');
   const [discount, setDiscount] = useState(0);
+
+  // Store IP and Device Hash per session so we can demonstrate Velocity/Temporal Fraud
+  const sessionIpRef = useRef('103.21.' + Math.floor(Math.random()*255) + '.' + Math.floor(Math.random()*255));
+  const sessionDeviceRef = useRef('web_' + Math.random().toString(36).substring(2, 14));
+
+  const { triggerShippingEffect } = useShippingEffect();
 
   const baseDiscount = discount;
   const upiDiscount = (riskResult?.checkout_ui_rules?.discount_incentive_active && payTab === 'upi')
@@ -61,21 +109,26 @@ export default function Checkout() {
   const evaluateRisk = async () => {
     const err = validate();
     if (err) { setError(err); return; }
-    setStep('loading');
-    const payload = {
-      cart_value: subtotal,
-      shipping_address: form.address,
-      pincode: form.pincode,
-      customer_ip: '103.21.' + Math.floor(Math.random()*255) + '.' + Math.floor(Math.random()*255),
-      device_hash: 'web_' + Math.random().toString(36).substring(2, 14),
-      category: cart[0]?.category || 'Fashion',
-      payment_method: 'COD',
-      order_quantity: cart.reduce((s, c) => s + c.qty, 0),
-    };
-    const result = await evaluateRiskDemo(payload);
-    setRiskResult(result);
-    setIsFallback(!!result._fallback);
-    setStep('payment');
+    
+    triggerShippingEffect({
+      onLanded: async () => {
+        setStep('loading');
+        const payload = {
+          cart_value: subtotal,
+          shipping_address: form.address,
+          pincode: form.pincode,
+          customer_ip: sessionIpRef.current,
+          device_hash: sessionDeviceRef.current,
+          category: cart[0]?.category || 'Fashion',
+          payment_method: 'COD',
+          order_quantity: cart.reduce((s, c) => s + c.qty, 0),
+        };
+        const result = await evaluateRiskDemo(payload);
+        setRiskResult(result);
+        setIsFallback(!!result._fallback);
+        setStep('payment');
+      }
+    });
   };
 
   const handlePay = async () => {
@@ -153,24 +206,13 @@ export default function Checkout() {
                     {PRODUCTS.map(p => {
                       const inCart = cart.find(c => c.id === p.id);
                       return (
-                        <div key={p.id} className={`product-card ${inCart ? 'selected' : ''}`} onClick={() => toggleProduct(p)} tabIndex={0}>
-                          <img className="product-card-img" src={p.img} alt={p.name} />
-                          <div className="product-card-name">{p.name}</div>
-                          <div className="product-card-cat">{p.category}</div>
-                          <div className="product-card-price">₹{p.price.toLocaleString()}</div>
-                          {inCart && (
-                            <div className="product-card-qty" onClick={e => e.stopPropagation()}>
-                              <button className="qty-btn" onClick={() => updateQty(p.id, -1)}>−</button>
-                              <span className="qty-value">{inCart.qty}</span>
-                              <button className="qty-btn" onClick={() => updateQty(p.id, 1)}>+</button>
-                            </div>
-                          )}
-                          {inCart && (
-                            <div className="selected-check">
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
-                            </div>
-                          )}
-                        </div>
+                        <ProductItem 
+                          key={p.id} 
+                          p={p} 
+                          inCart={inCart} 
+                          toggleProduct={toggleProduct} 
+                          updateQty={updateQty} 
+                        />
                       );
                     })}
                   </div>
@@ -450,23 +492,26 @@ export default function Checkout() {
                     </div>
                   )}
 
-                  {/* Pay Button */}
-                  <button className={`btn btn-primary pay-now-btn ${paying ? 'loading' : ''}`} onClick={handlePay} disabled={paying || (payTab === 'upi' && !upiApp)}>
-                    <span className="btn-hover-layer" />
-                    <span className="btn-content" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {paying ? (
-                        <><span className="btn-spinner" /> Processing…</>
-                      ) : (
-                        <>
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                          Pay ₹{total.toLocaleString()}
-                          {riskResult.checkout_ui_rules.discount_incentive_active && payTab === 'upi' && (
-                            <span style={{fontSize:'0.75rem',opacity:0.8}}> (Save ₹{(riskResult.checkout_ui_rules.discount_amount_in_paise / 100).toFixed(0)})</span>
-                          )}
-                        </>
-                      )}
-                    </span>
-                  </button>
+                  {/* Actions */}
+                  <div className="form-actions mt-6">
+                    <button className="btn btn-secondary" onClick={() => setStep('shipping')} disabled={paying}>← Edit Shipping</button>
+                    <button className={`btn btn-primary pay-now-btn ${paying ? 'loading' : ''}`} onClick={handlePay} disabled={paying || (payTab === 'upi' && !upiApp)}>
+                      <span className="btn-hover-layer" />
+                      <span className="btn-content" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {paying ? (
+                          <><span className="btn-spinner" /> Processing…</>
+                        ) : (
+                          <>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                            Pay ₹{total.toLocaleString()}
+                            {riskResult.checkout_ui_rules.discount_incentive_active && payTab === 'upi' && (
+                              <span style={{fontSize:'0.75rem',opacity:0.8}}> (Save ₹{(riskResult.checkout_ui_rules.discount_amount_in_paise / 100).toFixed(0)})</span>
+                            )}
+                          </>
+                        )}
+                      </span>
+                    </button>
+                  </div>
                   <div className="processing-note">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                     Secured by Razorpay &bull; 256-bit encryption
@@ -479,7 +524,7 @@ export default function Checkout() {
           {/* ── Right Column: Order Summary ── */}
           <aside className="checkout-sidebar">
             <div className="order-sidebar order-sidebar-receipt">
-              <div className="order-sidebar-header">Order Summary</div>
+              <div id="order-summary-title" className="order-sidebar-header">Order Summary</div>
               {cart.map(c => (
                 <div key={c.id} className="order-sidebar-item">
                   <div className="icon-well-deep" style={{ width: 56, height: 56, padding: 4 }}>

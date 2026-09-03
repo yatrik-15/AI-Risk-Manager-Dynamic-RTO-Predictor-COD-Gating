@@ -1,5 +1,7 @@
 # ⚡ Core Engineering Highlights
 
+![System Architecture](./System_architecture.png)
+
 ## 1. Non-Blocking Threadpool Offloading
 CPU-intensive ML operations (such as CatBoost matrix transformations and SHAP tree-explainer evaluations) can block the standard Python async event loop, reducing API concurrency.
 - **Implementation:** Offloaded synchronous ML routines to Starlette threadpools via `starlette.concurrency.run_in_threadpool`.
@@ -12,7 +14,7 @@ Standard models fail against deliberate bot exploitation. This microservice impl
 
 ## 3. Fault-Tolerant, Fail-Open Architecture (The Graceful Degradation Bar)
 Fintech systems must never lose a legitimate checkout due to an internal microservice timeout.
-- **Redis Timeout Fallback:** Redis calls are wrapped in non-blocking try-except handlers. If the cache is unreachable, velocity counters silently default to 0, allowing the model to score based on address heuristics.
+- **Redis Timeout & In-Memory Fallback:** Redis calls are wrapped in non-blocking try-except handlers. If the cache is unreachable (e.g. local demo or cluster failure), the Sentinel gracefully degrades to an **in-memory sliding window**, ensuring temporal velocity defenses never go offline.
 - **150ms Frontend Circuit Breaker:** If the risk API throws a 500 or network timeout, the checkout frontend automatically fails open, defaults to standard checkout, and asynchronously logs the event to `/api/v1/dashboard/failures`.
 
 ## 4. Razorpay-Compliant Dynamic Bounding
@@ -24,6 +26,9 @@ Guarantees that the final order amount sent to `POST /v1/orders` is always stric
 ## 5. Strict Type Safety & Pydantic V2 Validation
 - Replaced bare dictionaries with explicit `typing.TypedDict` (`ModelFeatures`) across feature extraction pipelines.
 - Strict input validation sanitizes currency symbols, commas, and malformed strings before payload ingestion.
+
+## 6. Transparent Risk Explainability
+- **Granular Risk Labels:** The system avoids black-box scoring. The API explicitly differentiates between pure ML feature impacts `(SHAP: +X.XX)`, deterministic business logic `(Rule)`, and temporal anomalies `(Heuristic)` so the merchant knows exactly why a transaction was flagged.
 
 # 📊 Evaluation & Economic Impact Matrix
 Evaluated on a held-out test set of 2,000 synthetic Indian D2C transactions:
@@ -76,7 +81,12 @@ Evaluates checkout payload, enforces guardrails, and returns dynamic UI rules.
     "display_message": "Standard checkout active."
   },
   "audit_trail": {
-    "top_risk_factors": ["address_completeness_high (SHAP: +0.42)", "low_velocity_pincode (SHAP: +0.15)", "critically_short_address (Rule)"]
+    "top_risk_factors": [
+      "address_completeness_high (SHAP: +0.42)", 
+      "low_velocity_pincode (SHAP: +0.15)", 
+      "critically_short_address (Rule)",
+      "High IP velocity: 4 requests in 15 min (Heuristic)"
+    ]
   }
 }
 ```
@@ -164,7 +174,7 @@ npm install
 npm run dev
 ```
 
-Access the Buyer Checkout UI at `http://localhost:5173` and the Merchant Dashboard at `http://localhost:5173/dashboard`.
+Access the Buyer Checkout UI at `http://localhost:3000` and the Merchant Dashboard at `http://localhost:3000/dashboard`.
 
 # 🔮 Alignment with Razorpay Vulcan
 This microservice is extensible to act as an Agentic Execution Layer. While running independently at the merchant edge using tabular gradient boosting, its architecture can be extended to ingest sequential foundation-level network embeddings from Razorpay Vulcan, allowing network-wide payment intelligence to directly drive localized, bounded merchant interventions.
