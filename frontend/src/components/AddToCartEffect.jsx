@@ -1,27 +1,8 @@
 // AddToCartEffect.jsx
-//
-// Single-file version: hook + ProductCard + CartIcon all in one.
-// Drop this into frontend/src/components/AddToCartEffect.jsx
-//
-// Setup:
-//   npm install gsap
-//
-// Usage in Checkout.jsx:
-//   import { ProductCard, CartIcon } from "./components/AddToCartEffect";
-//
-//   <CartIcon count={cartCount} />
-//   {products.map(p => (
-//     <ProductCard key={p.id} product={p} onAddToCart={handleAddToCart} />
-//   ))}
-
 import { useCallback, useRef } from "react";
 import gsap from "gsap";
 
-// ---------------------------------------------------------------------------
-// Hook: useAddToCartEffect
-// Moves product to center, shows checkout card animation, then shipping truck
-// before flying to the cart icon.
-// ---------------------------------------------------------------------------
+
 function useAddToCartEffect({ veilOpacity = 1 } = {}) {
   const triggerAddToCartEffect = useCallback(
     ({ imageEl, buttonEl, cartEl, onLanded }) => {
@@ -31,7 +12,7 @@ function useAddToCartEffect({ veilOpacity = 1 } = {}) {
       const cartRect = cartEl.getBoundingClientRect();
       const cartCenterX = cartRect.left + cartRect.width / 2;
       const cartCenterY = cartRect.top + cartRect.height / 2;
-      
+
       const windowCenterX = window.innerWidth / 2;
       const windowCenterY = window.innerHeight / 2;
 
@@ -78,8 +59,8 @@ function useAddToCartEffect({ veilOpacity = 1 } = {}) {
         el.innerHTML = svgString;
         Object.assign(el.style, {
           position: "absolute",
-          left: `${windowCenterX + offsetX - size/2}px`,
-          top: `${windowCenterY + offsetY - size/2}px`,
+          left: `${windowCenterX + offsetX - size / 2}px`,
+          top: `${windowCenterY + offsetY - size / 2}px`,
           width: `${size}px`,
           height: `${size}px`,
           color: "var(--atc-icon-color, #111)",
@@ -153,7 +134,7 @@ function useAddToCartEffect({ veilOpacity = 1 } = {}) {
         duration: 0.6,
         ease: "power3.out"
       }, 0.1);
-      
+
       tl.to(stageCart, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(1.5)" }, 0.3);
 
       // Image drops into cart
@@ -246,8 +227,8 @@ function useShippingEffect({ veilOpacity = 1 } = {}) {
         el.innerHTML = svgString;
         Object.assign(el.style, {
           position: "absolute",
-          left: `${windowCenterX - size/2}px`,
-          top: `${windowCenterY - size/2}px`,
+          left: `${windowCenterX - size / 2}px`,
+          top: `${windowCenterY - size / 2}px`,
           width: `${size}px`,
           height: `${size}px`,
           color: "var(--atc-icon-color, #111)",
